@@ -2424,7 +2424,7 @@
         }
       }
       document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
-      document.addEventListener('touchend', unlockAudio, { passive: true });
+      document.addEventListener('touchend', unlockAudio, { once: true, passive: true });
 
       function startMusic() {
         audio.muted = false;
@@ -2459,8 +2459,12 @@
       function stopMusic() {
         audio.pause();
         isPlaying = false;
+        userPaused = true;
         disc.classList.remove('spinning');
       }
+
+      // Track whether user manually paused
+      let userPaused = false;
 
       // Music toggle button — simple play/pause
       musicBtn.addEventListener('click', (e) => {
@@ -2468,9 +2472,37 @@
         if (isPlaying) {
           stopMusic();
         } else {
+          userPaused = false;
           startMusic();
         }
       });
+
+      // ── Mobile audio resilience ──
+      // Resume music when user returns to the tab/app
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && isPlaying && audio.paused && !userPaused) {
+          audio.play().catch(() => {});
+        }
+      });
+
+      // Detect unexpected pauses (mobile browsers suspending audio)
+      audio.addEventListener('pause', () => {
+        if (isPlaying && !userPaused) {
+          // Browser paused the audio unexpectedly, try to resume
+          setTimeout(() => {
+            if (isPlaying && audio.paused && !userPaused) {
+              audio.play().catch(() => {});
+            }
+          }, 300);
+        }
+      });
+
+      // Periodic liveness check for mobile (every 3s)
+      setInterval(() => {
+        if (isPlaying && audio.paused && !userPaused && document.visibilityState === 'visible') {
+          audio.play().catch(() => {});
+        }
+      }, 3000);
 
       /* ---------------- opening → main reveal ---------------- */
       const opening = document.getElementById('opening');
